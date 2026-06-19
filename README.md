@@ -5,6 +5,9 @@ A Python script that automatically plays video courses, monitors playback progre
 ## Features
 
 - Auto detect and play videos
+- **NEW: Auto detect multiple videos on same page** - plays all videos before moving to next section
+- **NEW: Auto scroll to video** - scrolls page to bring video into view before playing
+- **NEW: Dynamic mouse click** - calculates correct click position for each video
 - Auto monitor playback progress
 - Auto click "Next Section" button
 - Auto handle quiz/answer pages
@@ -70,34 +73,32 @@ During the **10 seconds countdown**:
 **Do the following:**
 
 1. Move your mouse to the **center of the video player**
-2. This position will be recorded for auto-clicking
+2. This position will be recorded as a fallback for clicking
 3. Keep the mouse there until countdown finishes
 
-**Why this matters:**
-- The script needs to know where to click to play the video
-- The position is recorded at the end of countdown
-- If you position incorrectly, auto-play may fail
+**Note:** The script now dynamically calculates click positions for each video, but the initial position is still used as a fallback.
 
 ### Step 6: Script Runs Automatically
 
 After countdown finishes, the script will:
 1. Inject mouse-detection bypass scripts
-2. Search for video
-3. Auto-click to play (uses your recorded mouse position)
-4. Monitor playback progress
-5. Auto-click "Next Section" when video ends
+2. Detect all videos on the page
+3. Auto scroll to each video
+4. Auto-click to play
+5. Monitor playback progress
+6. When a video ends, check for more videos on same page
+7. If more videos found, scroll and play them
+8. When all videos on page are done, click "Next Section"
 
 **During playback:**
 - Your mouse is **FREE to move** (you can do other things)
 - The script uses JavaScript injection to bypass mouse detection
 - Browser can be in background (but NOT minimized)
 
-**When switching sections:**
-- Browser will **automatically come to front**
-- Script will click "Next Section" button
-- Mouse will be controlled briefly for clicking
-- **DO NOT interfere during this moment!**
-- After clicking, mouse is free again
+**When switching videos:**
+- Script will auto scroll to the next video
+- Mouse click position is calculated dynamically
+- Browser will **automatically come to front** when switching sections
 
 ### Step 7: Stop the Script
 
@@ -121,24 +122,21 @@ Follow the same steps as Windows (Steps 4-7).
 ### DO NOT:
 - ❌ Resize browser window after starting
 - ❌ Minimize browser window
-- ❌ Move mouse during auto-click moments
 - ❌ Close the CMD window that started Edge
 
 ### DO:
-- ✅ Position mouse correctly during countdown
+- ✅ Position mouse correctly during countdown (fallback)
 - ✅ Make sure "Next Section" button is visible
 - ✅ Let script run uninterrupted
 - ✅ Press ESC to stop when needed
 
-### Mouse Control Schedule:
+### Multi-Video Detection:
 
-| Phase | Mouse Control | Your Action |
-|-------|---------------|-------------|
-| Countdown | You control | Position mouse on video |
-| Video search | Script may click | Wait, don't interfere |
-| Video playing | You control | Free to do anything |
-| Switching section | Script controls | Don't interfere |
-| After clicking | You control | Free again |
+If a page has multiple videos, the script will:
+1. Detect how many videos are on the page
+2. Play them one by one
+3. Auto scroll to each video before playing
+4. Only click "Next Section" after ALL videos are done
 
 ## Troubleshooting
 
@@ -147,13 +145,16 @@ Follow the same steps as Windows (Steps 4-7).
 - Check if Edge is actually open (look at taskbar)
 
 ### "Auto play failed":
-- Mouse position may be incorrect
-- Re-run script and position mouse more carefully
+- The script now uses multiple methods to click (JS + real mouse click)
 - Try clicking manually once, script will continue
 
 ### "Video not found":
 - Make sure you're on a video learning page
 - Wait a few seconds for page to load
+
+### Script plays only one video when there are multiple:
+- This issue has been fixed
+- Script now properly detects and plays all videos on the page
 
 ### Script stops unexpectedly:
 - Pressed ESC accidentally
@@ -175,3 +176,11 @@ MIT License - Free to use and modify.
 ## Author
 
 Created for automated course learning (HUST).
+
+## Changelog
+
+### Latest Version
+- Added: Multi-video detection on same page
+- Added: Auto scroll to video before playing
+- Added: Dynamic mouse click position calculation
+- Fixed: Script now plays all videos before moving to next section

@@ -27,6 +27,7 @@ Step 3: Type y to confirm
 Step 4: Position Mouse
 ----------------
 During 10 seconds countdown, move mouse to video center
+(This is now a fallback - script calculates positions dynamically)
 
 Step 5: Auto Play
 ----------------
@@ -43,6 +44,15 @@ chmod +x start_chrome_debug_mac.sh
 ./start_chrome_debug_mac.sh
 
 python3 1.py
+
+==========================================
+
+NEW Features (Multi-Video Support):
+==========
+- Auto detect multiple videos on same page
+- Auto scroll to each video before playing
+- Play all videos before moving to next section
+- Dynamic click position calculation for each video
 
 ==========================================
 
@@ -63,10 +73,24 @@ Press ESC key
 
 Features:
 ==========
-- Auto detect video
+- Auto detect video (single or multiple)
+- Auto scroll to video
 - Auto click play
+- Auto switch to next video on same page
 - Auto switch to next section
 - Auto handle quiz pages
 - Auto install dependencies
+
+==========================================
+
+Troubleshooting:
+==========
+If only one video plays when there are multiple:
+- This issue has been fixed in the latest version
+- Script now properly detects and plays all videos
+
+If video doesn't auto-play:
+- Script uses multiple methods (JS + real click)
+- Try manual click once, script will continue
 
 ==========================================
