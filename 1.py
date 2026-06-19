@@ -185,41 +185,210 @@ def deep_inject():
         """
     })
 
-def get_video_status():
+def get_all_videos():
+    """获取页面上所有视频的状态，返回列表"""
     result = send_cmd("Runtime.evaluate", {
         "expression": """
         (function() {
-            function findVideo(win) {
+            function findVideos(win, list) {
                 try {
                     let videos = win.document.querySelectorAll('video');
                     for (let v of videos) {
-                        return {
-                            found: true,
+                        list.push({
                             paused: v.paused,
                             currentTime: v.currentTime,
                             duration: v.duration,
                             ended: v.ended
-                        };
+                        });
                     }
                     if (win.frames) for (let i = 0; i < win.frames.length; i++) {
-                        try {
-                            let r = findVideo(win.frames[i]);
-                            if (r) return r;
-                        } catch(e) {}
+                        try { findVideos(win.frames[i], list); } catch(e) {}
                     }
                 } catch(e) {}
-                return null;
+                return list;
             }
-            return JSON.stringify(findVideo(window) || {found: false});
+            return JSON.stringify(findVideos(window, []));
         })()
         """
     })
-    return json.loads(result['result']['result'].get('value', '{}'))
+    return json.loads(result['result']['result'].get('value', '[]'))
+
+def get_video_status():
+    """兼容原接口：返回第一个视频的状态"""
+    videos = get_all_videos()
+    if videos:
+        v = videos[0]
+        v['found'] = True
+        return v
+    return {'found': False}
+
+def find_unplayed_video():
+    """在多个视频中找到未播放完的那个，返回其索引（从0开始），都播放完了返回-1"""
+    videos = get_all_videos()
+    for i, v in enumerate(videos):
+        ended = v.get('ended', False)
+        if ended:
+            continue  # 已结束，跳过
+        duration = v.get('duration') or 0
+        current = v.get('currentTime') or 0
+        # 没开始播（current接近0），或者播了但没播完
+        if current < 1 or (duration > 0 and current < duration - 1):
+            return i
+    return -1
+
+def click_video_by_index(index):
+    """点击页面上第 index 个视频元素（从0开始）"""
+    send_cmd("Runtime.evaluate", {
+        "expression": f"""
+        (function() {{
+            function clickVideo(win, idx, current) {{
+                try {{
+                    let videos = win.document.querySelectorAll('video');
+                    for (let v of videos) {{
+                        if (current === idx) {{
+                            v.play().catch(()=>{{}});
+                            v.click();
+                            let rect = v.getBoundingClientRect();
+                            let x = rect.x + rect.width / 2;
+                            let y = rect.y + rect.height / 2;
+                            v.dispatchEvent(new MouseEvent('click', {{bubbles:true, cancelable:true, view:win, clientX:x, clientY:y}}));
+                            return {{found: true, index: idx}};
+                        }}
+                        current++;
+                    }}
+                    let iframes = win.document.querySelectorAll('iframe');
+                    for (let i = 0; i < iframes.length && i < win.frames.length; i++) {{
+                        try {{
+                            let r = clickVideo(win.frames[i], idx, current);
+                            if (r) return r;
+                            current += win.frames[i].document.querySelectorAll('video').length;
+                        }} catch(e) {{}}
+                    }}
+                }} catch(e) {{}}
+                return null;
+            }}
+            return JSON.stringify(clickVideo(window, {index}, 0) || {{found: false}});
+        }})()
+        """
+    })
+
+def play_video_by_index(index):
+    """播放页面上第 index 个视频元素"""
+    send_cmd("Runtime.evaluate", {
+        "expression": f"""
+        (function() {{
+            function playVid(win, idx, current) {{
+                try {{
+                    let videos = win.document.querySelectorAll('video');
+                    for (let v of videos) {{
+                        if (current === idx) {{
+                            v.play().catch(()=>{{}});
+                            return true;
+                        }}
+                        current++;
+                    }}
+                    let iframes = win.document.querySelectorAll('iframe');
+                    for (let i = 0; i < iframes.length && i < win.frames.length; i++) {{
+                        try {{
+                            let count = win.frames[i].document.querySelectorAll('video').length;
+                            if (idx < current + count) {{
+                                return playVid(win.frames[i], idx, current);
+                            }}
+                            current += count;
+                        }} catch(e) {{}}
+                    }}
+                }} catch(e) {{}}
+                return false;
+            }}
+            playVid(window, {index}, 0);
+        }})()
+        """
+    })
+
+def scroll_to_video(index):
+    """滚动页面使第 index 个视频进入可视区域"""
+    send_cmd("Runtime.evaluate", {
+        "expression": f"""
+        (function() {{
+            function scrollTo(win, idx, current) {{
+                try {{
+                    let videos = win.document.querySelectorAll('video');
+                    for (let v of videos) {{
+                        if (current === idx) {{
+                            v.scrollIntoView({{behavior: 'smooth', block: 'center'}});
+                            return true;
+                        }}
+                        current++;
+                    }}
+                    let iframes = win.document.querySelectorAll('iframe');
+                    for (let i = 0; i < iframes.length && i < win.frames.length; i++) {{
+                        try {{
+                            let count = win.frames[i].document.querySelectorAll('video').length;
+                            if (idx < current + count) {{
+                                return scrollTo(win.frames[i], idx, current);
+                            }}
+                            current += count;
+                        }} catch(e) {{}}
+                    }}
+                }} catch(e) {{}}
+                return false;
+            }}
+            scrollTo(window, {index}, 0);
+        }})()
+        """
+    })
+
+def get_video_screen_position(index):
+    """获取第 index 个视频的屏幕坐标（用于 pyautogui 点击）"""
+    result = send_cmd("Runtime.evaluate", {
+        "expression": f"""
+        (function() {{
+            function findPos(win, idx, current) {{
+                try {{
+                    let videos = win.document.querySelectorAll('video');
+                    for (let v of videos) {{
+                        if (current === idx) {{
+                            let rect = v.getBoundingClientRect();
+                            // 计算屏幕绝对坐标
+                            let screenX = win.screenX + (win.outerWidth - win.innerWidth) / 2;
+                            let screenY = win.screenY + win.outerHeight - win.innerHeight - (win.outerWidth - win.innerWidth) / 2;
+                            let x = screenX + rect.x + rect.width / 2;
+                            let y = screenY + rect.y + rect.height / 2;
+                            return {{x: Math.round(x), y: Math.round(y), found: true}};
+                        }}
+                        current++;
+                    }}
+                    let iframes = win.document.querySelectorAll('iframe');
+                    for (let i = 0; i < iframes.length && i < win.frames.length; i++) {{
+                        try {{
+                            let count = win.frames[i].document.querySelectorAll('video').length;
+                            if (idx < current + count) {{
+                                return findPos(win.frames[i], idx, current);
+                            }}
+                            current += count;
+                        }} catch(e) {{}}
+                    }}
+                }} catch(e) {{}}
+                return null;
+            }}
+            return JSON.stringify(findPos(window, {index}, 0) || {{found: false}});
+        }})()
+        """
+    })
+    return json.loads(result['result']['result'].get('value', '{"found": false}'))
 
 def click_video_real():
     global video_center_x, video_center_y
     if video_center_x and video_center_y:
         pyautogui.click(video_center_x, video_center_y)
+        return True
+    return False
+
+def click_video_real_by_index(index):
+    """动态获取视频位置，用 pyautogui 真实点击"""
+    pos = get_video_screen_position(index)
+    if pos.get('found'):
+        pyautogui.click(pos['x'], pos['y'])
         return True
     return False
 
@@ -290,6 +459,42 @@ try:
         print(f" 视频 #{video_count}")
         print(f"{'='*50}")
 
+        # ===== 检测页面上有多少个视频 =====
+        all_videos = get_all_videos()
+        total_videos = len(all_videos)
+        if total_videos > 1:
+            print(f"\n  检测到页面上有 {total_videos} 个视频！")
+            # 找到第一个未播放完的视频
+            current_video_index = find_unplayed_video()
+            if current_video_index >= 0:
+                print(f"  将播放第 {current_video_index + 1} 个视频")
+            else:
+                print("  所有视频都已播放完成，尝试下一节...")
+                # 直接跳到下一节逻辑
+                all_played = True
+                # 跳过下面的播放逻辑，直接进入下一节
+                if not running:
+                    break
+                # ===== 点击下一节 =====
+                print("\n正在查找下一节...")
+                bring_browser_to_front()
+                time.sleep(1)
+                next_result = click_next_video()
+                if next_result.get('found'):
+                    print(f"  已点击 '{next_result.get('text')}'")
+                    time.sleep(3)
+                    deep_inject()
+                    continue
+                else:
+                    print("  课程结束！")
+                    break
+        else:
+            current_video_index = 0
+
+        # 滚动到目标视频，确保可见
+        scroll_to_video(current_video_index)
+        time.sleep(1)
+
         # ===== 搜索视频并播放 =====
         print("\n正在搜索视频...")
         waited = 0
@@ -303,11 +508,17 @@ try:
             if waited % 10 == 0:
                 deep_inject()
 
-            status = get_video_status()
-
-            if not status.get('found'):
+            all_videos = get_all_videos()
+            if not all_videos:
                 print(f"\r  未找到视频... {waited}秒  ", end="", flush=True)
                 continue
+
+            # 获取当前视频状态
+            if current_video_index < len(all_videos):
+                status = all_videos[current_video_index]
+                status['found'] = True
+            else:
+                status = {'found': False}
 
             current = status.get('currentTime') or 0
             paused = status.get('paused', True)
@@ -322,35 +533,38 @@ try:
             if click_attempts < max_click_attempts:
                 click_attempts += 1
                 status_text = f"时长 {format_time(duration)}" if duration > 0 else "加载中"
-                print(f"\r  检测到视频（{status_text}），点击播放... 第 #{click_attempts} 次  ", end="", flush=True)
+                video_label = f"视频{current_video_index + 1}" if total_videos > 1 else "视频"
+                print(f"\r  检测到{video_label}（{status_text}），点击播放... 第 #{click_attempts} 次  ", end="", flush=True)
 
-                # JS播放
-                play_video_js()
+                # JS播放指定视频
+                play_video_by_index(current_video_index)
                 time.sleep(0.2)
 
-                # 单击
-                click_video_real()
+                # 点击指定视频元素
+                click_video_by_index(current_video_index)
                 time.sleep(0.8)
 
                 # 检查是否成功
-                s2 = get_video_status()
-                if s2.get('found') and not s2.get('paused', True) and s2.get('currentTime', 0) > 0:
-                    print(f"\n  自动播放成功！{format_time(s2.get('currentTime', 0))}/{format_time(s2.get('duration', 0))}")
-                    break
+                all_videos_check = get_all_videos()
+                if current_video_index < len(all_videos_check):
+                    s2 = all_videos_check[current_video_index]
+                    if not s2.get('paused', True) and s2.get('currentTime', 0) > 0:
+                        print(f"\n  自动播放成功！{format_time(s2.get('currentTime', 0))}/{format_time(s2.get('duration', 0))}")
+                        break
 
-                # 单击不行，双击试试
-                click_video_real()
-                time.sleep(0.1)
-                click_video_real()
+                # pyautogui真实点击
+                click_video_real_by_index(current_video_index)
                 time.sleep(1)
             else:
                 print(f"\n\n  *** 请手动点击视频播放！***")
                 while running:
                     time.sleep(1)
-                    s = get_video_status()
-                    if s.get('found') and (s.get('currentTime', 0) > 0 or not s.get('paused', True)):
-                        print("  视频已开始！")
-                        break
+                    all_videos_manual = get_all_videos()
+                    if current_video_index < len(all_videos_manual):
+                        s = all_videos_manual[current_video_index]
+                        if s.get('currentTime', 0) > 0 or not s.get('paused', True):
+                            print("  视频已开始！")
+                            break
                 break
 
         if not running:
@@ -366,7 +580,13 @@ try:
 
         while running:
             time.sleep(1)
-            status = get_video_status()
+            all_videos = get_all_videos()
+
+            if current_video_index < len(all_videos):
+                status = all_videos[current_video_index]
+                status['found'] = True
+            else:
+                status = {'found': False}
 
             if status.get('found'):
                 current = status.get('currentTime') or 0
@@ -377,29 +597,56 @@ try:
                 if duration > 0:
                     progress = current / duration * 100
                     bar = "=" * int(progress/100*30) + "-" * (30-int(progress/100*30))
-                    print(f"\r  [{bar}] {format_time(current)}/{format_time(duration)} ({progress:.0f}%) {'暂停' if paused else '播放中'}  ", end="", flush=True)
+                    video_label = f"视频{current_video_index + 1}" if total_videos > 1 else ""
+                    print(f"\r  [{bar}] {format_time(current)}/{format_time(duration)} ({progress:.0f}%) {video_label}{'暂停' if paused else '播放中'}  ", end="", flush=True)
 
-                    if paused and current < duration - 2:
+                    if paused and (duration <= 0 or current < duration - 2):
                         print("\n  视频暂停，尝试恢复...")
-                        play_video_js()
+                        play_video_by_index(current_video_index)
                         time.sleep(0.2)
-                        click_video_real()
+                        click_video_by_index(current_video_index)
                         time.sleep(0.3)
-                        click_video_real()
+                        click_video_real_by_index(current_video_index)
                         time.sleep(1)
 
                 if abs(current - last_time) < 0.5 and not paused:
                     stuck_count += 1
                     if stuck_count >= 10:
-                        click_video_real()
+                        click_video_by_index(current_video_index)
                         stuck_count = 0
                 else:
                     stuck_count = 0
                 last_time = current
 
                 if ended or (duration > 0 and current >= duration - 1):
-                    print(f"\n\n  ✓ 视频播放完成！")
+                    print(f"\n\n  ✓ 视频{current_video_index + 1}播放完成！")
                     total_time += duration
+
+                    # 检查是否还有其他视频需要播放
+                    if total_videos > 1:
+                        remaining = find_unplayed_video()
+                        if remaining >= 0:
+                            video_count += 1  # 递增视频计数
+                            print(f"\n{'='*50}")
+                            print(f" 视频 #{video_count}")
+                            print(f"{'='*50}")
+                            print(f"  页面上还有未播放的视频，切换到视频 {remaining + 1}...")
+                            scroll_to_video(remaining)
+                            time.sleep(1)
+                            current_video_index = remaining
+                            last_time = 0
+                            stuck_count = 0
+                            # 主动触发播放
+                            play_video_by_index(remaining)
+                            time.sleep(0.3)
+                            click_video_by_index(remaining)
+                            time.sleep(0.3)
+                            click_video_real_by_index(remaining)
+                            time.sleep(1)
+                            # 不退出监控循环，继续播放下一个视频
+                            continue
+                        else:
+                            print("  页面上所有视频都已播放完成！")
                     break
 
         if not running:
@@ -420,10 +667,11 @@ try:
 
             print("  检查下一页...")
             time.sleep(2)
-            status = get_video_status()
+            all_videos = get_all_videos()
 
-            if status.get('found'):
-                print("  ✓ 下一页有视频")
+            if all_videos:
+                total_videos = len(all_videos)
+                print(f"  ✓ 下一页有 {total_videos} 个视频")
                 # 再次置顶，确保点击播放时位置正确
                 bring_browser_to_front()
             else:
