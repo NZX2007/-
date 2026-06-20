@@ -53,6 +53,7 @@ NEW Features (Multi-Video Support):
 - Auto scroll to each video before playing
 - Play all videos before moving to next section
 - Dynamic click position calculation for each video
+- 60-second timeout auto-skip: if no video found, clicks "Next Section" and continues
 
 ==========================================
 
@@ -78,6 +79,7 @@ Features:
 - Auto click play
 - Auto switch to next video on same page
 - Auto switch to next section
+- Auto skip if no video found (60s timeout)
 - Auto handle quiz pages
 - Auto install dependencies
 
@@ -92,5 +94,10 @@ If only one video plays when there are multiple:
 If video doesn't auto-play:
 - Script uses multiple methods (JS + real click)
 - Try manual click once, script will continue
+
+If page has no video (quiz section, error):
+- Script waits 60 seconds
+- If not found, auto clicks "Next Section"
+- Continues to next section without stopping
 
 ==========================================

@@ -10,6 +10,7 @@ A Python script that automatically plays video courses, monitors playback progre
 - **NEW: Dynamic mouse click** - calculates correct click position for each video
 - Auto monitor playback progress
 - Auto click "Next Section" button
+- **NEW: Auto skip on timeout** - if no video found in 60s, automatically clicks "Next Section" and continues
 - Auto handle quiz/answer pages
 - Mouse is free to move during playback
 - Browser auto comes to front when switching sections
@@ -160,6 +161,11 @@ If a page has multiple videos, the script will:
 - Pressed ESC accidentally
 - Browser window was resized/minimized
 
+### Page has no video (quiz section, loading error):
+- Script waits 60 seconds for video
+- If not found, automatically clicks "Next Section"
+- Continues to next section without stopping
+
 ## Dependencies
 
 The script auto-installs these:
@@ -183,4 +189,5 @@ Created for automated course learning (HUST).
 - Added: Multi-video detection on same page
 - Added: Auto scroll to video before playing
 - Added: Dynamic mouse click position calculation
+- Added: 60-second timeout auto-skip - clicks "Next Section" if no video found
 - Fixed: Script now plays all videos before moving to next section

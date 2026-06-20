@@ -570,8 +570,18 @@ try:
         if not running:
             break
         if waited >= 60:
-            print("\n  等待超时")
-            break
+            print("\n  等待超时，尝试点击下一节...")
+            bring_browser_to_front()
+            time.sleep(1)
+            next_result = click_next_video()
+            if next_result.get('found'):
+                print(f"  已点击 '{next_result.get('text')}'")
+                time.sleep(3)
+                deep_inject()
+                continue  # 继续下一轮循环
+            else:
+                print("  未找到下一节按钮，脚本结束")
+                break
 
         # ===== 监控播放 =====
         print("\n监控播放进度...")
