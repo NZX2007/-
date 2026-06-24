@@ -54,6 +54,7 @@ NEW Features (Multi-Video Support):
 - Play all videos before moving to next section
 - Dynamic click position calculation for each video
 - 60-second timeout auto-skip: if no video found, clicks "Next Section" and continues
+- Smart retry: if next page has no video, retries up to 5 times before stopping
 
 ==========================================
 
@@ -98,6 +99,7 @@ If video doesn't auto-play:
 If page has no video (quiz section, error):
 - Script waits 60 seconds
 - If not found, auto clicks "Next Section"
-- Continues to next section without stopping
+- If next page still has no video, retries up to 5 times
+- Only stops after 5 failed attempts
 
 ==========================================

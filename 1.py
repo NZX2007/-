@@ -665,39 +665,43 @@ try:
         # ===== 点击下一节 =====
         print("\n正在查找下一节...")
 
-        # 先把浏览器置顶，确保点击位置正确
-        bring_browser_to_front()
-        time.sleep(1)
+        # 重试机制：最多尝试5次
+        max_next_attempts = 5
+        next_attempt = 0
 
-        next_result = click_next_video()
-        if next_result.get('found'):
-            print(f"  已点击 '{next_result.get('text')}'")
-            time.sleep(3)
-            deep_inject()
+        while next_attempt < max_next_attempts and running:
+            next_attempt += 1
 
-            print("  检查下一页...")
-            time.sleep(2)
-            all_videos = get_all_videos()
+            # 先把浏览器置顶，确保点击位置正确
+            bring_browser_to_front()
+            time.sleep(1)
 
-            if all_videos:
-                total_videos = len(all_videos)
-                print(f"  ✓ 下一页有 {total_videos} 个视频")
-                # 再次置顶，确保点击播放时位置正确
-                bring_browser_to_front()
-            else:
-                print("  下一页没有视频（答题区），滚动...")
-                scroll_to_bottom()
-                time.sleep(1)
-                next_result2 = click_next_video()
-                if next_result2.get('found'):
-                    print(f"  再次点击 '{next_result2.get('text')}'")
-                    time.sleep(3)
-                    deep_inject()
+            next_result = click_next_video()
+            if next_result.get('found'):
+                print(f"  已点击 '{next_result.get('text')}'")
+                time.sleep(3)
+                deep_inject()
+
+                print("  检查下一页...")
+                time.sleep(2)
+                all_videos = get_all_videos()
+
+                if all_videos:
+                    total_videos = len(all_videos)
+                    print(f"  ✓ 下一页有 {total_videos} 个视频")
+                    bring_browser_to_front()
+                    break  # 有视频，退出重试循环，继续主循环
                 else:
-                    print("  课程结束！")
-                    break
-        else:
-            print("  课程结束！")
+                    print(f"  下一页没有视频，尝试再次点击下一节... ({next_attempt}/{max_next_attempts})")
+                    scroll_to_bottom()
+                    time.sleep(1)
+                    # 继续循环，再次点击
+            else:
+                print("  未找到下一节按钮，课程结束！")
+                break
+
+        if next_attempt >= max_next_attempts:
+            print(f"  已尝试 {max_next_attempts} 次，仍未找到视频，课程结束！")
             break
 
 except KeyboardInterrupt:
